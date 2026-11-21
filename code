@@ -1,0 +1,182 @@
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <Wire.h>
+
+// OLED: SH1106 128x64 I2C
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(
+  U8G2_R0, U8X8_PIN_NONE
+);
+
+#define TOUCH_PIN 5
+
+int expression = 0;
+
+bool previousTouch = false;
+bool loveMode = false;
+bool longPressDone = false;
+
+unsigned long pressStart = 0;
+
+const unsigned long LONG_PRESS_TIME = 1000;
+
+// Draw two eyes
+void drawEyes(int y, int eyeSize) {
+  u8g2.drawDisc(42, y, eyeSize);
+  u8g2.drawDisc(86, y, eyeSize);
+}
+
+// 1. HAPPY FACE
+void happyFace() {
+  u8g2.clearBuffer();
+
+  // Eyes
+  u8g2.drawDisc(42, 25, 5);
+  u8g2.drawDisc(86, 25, 5);
+
+  // Smile
+  u8g2.drawArc(64, 35, 20, 0, 180);
+
+  u8g2.sendBuffer();
+}
+
+// 2. SAD FACE
+void sadFace() {
+  u8g2.clearBuffer();
+
+  drawEyes(25, 5);
+
+  // Sad mouth
+  u8g2.drawArc(64, 58, 17, 180, 360);
+
+  // Tears
+  u8g2.drawDisc(30, 39, 3);
+  u8g2.drawDisc(98, 39, 3);
+
+  u8g2.sendBuffer();
+}
+
+// 3. ANGRY FACE
+void angryFace() {
+  u8g2.clearBuffer();
+
+  // Angry eyebrows
+  u8g2.drawLine(32, 14, 51, 21);
+  u8g2.drawLine(77, 21, 96, 14);
+
+  // Eyes
+  u8g2.drawDisc(42, 29, 5);
+  u8g2.drawDisc(86, 29, 5);
+
+  // Angry mouth
+  u8g2.drawLine(48, 52, 80, 52);
+  u8g2.drawLine(48, 52, 55, 46);
+  u8g2.drawLine(80, 52, 73, 46);
+
+  u8g2.sendBuffer();
+}
+
+// 4. SURPRISED FACE
+void surprisedFace() {
+  u8g2.clearBuffer();
+
+  // Wide eyes
+  u8g2.drawCircle(42, 25, 9);
+  u8g2.drawCircle(86, 25, 9);
+
+  u8g2.drawDisc(42, 25, 3);
+  u8g2.drawDisc(86, 25, 3);
+
+  // Open mouth
+  u8g2.drawEllipse(64, 48, 9, 11);
+
+  u8g2.sendBuffer();
+}
+
+// LOVE SCREEN
+void loveFace() {
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  u8g2.drawStr(30, 18, "LOVE!");
+
+  // Draw heart
+  u8g2.drawDisc(55, 39, 10);
+  u8g2.drawDisc(73, 39, 10);
+  u8g2.drawTriangle(45, 43, 83, 43, 64, 62);
+
+  u8g2.sendBuffer();
+}
+
+// Display selected expression
+void showExpression() {
+  loveMode = false;
+
+  switch (expression) {
+    case 0: happyFace(); break;
+    case 1: sadFace(); break;
+    case 2: angryFace(); break;
+    case 3: surprisedFace(); break;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TOUCH_PIN, INPUT);
+
+  Wire.begin(21, 22);
+
+  u8g2.begin();
+
+  happyFace();
+}
+
+void loop() {
+
+  bool touch = digitalRead(TOUCH_PIN);
+
+  // Touch started
+  if (touch && !previousTouch) {
+    pressStart = millis();
+    longPressDone = false;
+  }
+
+  // Long press detection
+  if (touch && !longPressDone) {
+
+    if (millis() - pressStart >= LONG_PRESS_TIME) {
+
+      loveMode = true;
+      longPressDone = true;
+
+      loveFace();
+
+      Serial.println("LOVE MODE ❤️");
+    }
+  }
+
+  // Touch released
+  if (!touch && previousTouch) {
+
+    unsigned long pressDuration = millis() - pressStart;
+
+    // Short press changes expression
+    if (pressDuration < LONG_PRESS_TIME) {
+
+      expression++;
+
+      if (expression > 3) {
+        expression = 0;
+      }
+
+      showExpression();
+
+      Serial.print("Expression: ");
+      Serial.println(expression);
+    }
+  }
+
+  previousTouch = touch;
+
+  delay(10);
+}
